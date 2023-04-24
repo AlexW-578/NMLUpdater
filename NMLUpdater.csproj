@@ -31,24 +31,30 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+    <PropertyGroup Condition="'$(NeosPath)'==''">
+    <NeosPath>$(MSBuildThisFileDirectory)NeosVR/</NeosPath>
+    <NeosPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\NeosVR\')">C:\Program Files (x86)\Steam\steamapps\common\NeosVR\</NeosPath>
+	<NeosPath Condition="Exists('..\..\..\Desktop\Neos\app\')">..\..\..\Desktop\Neos\app\</NeosPath>
+    <NeosPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/NeosVR/')">$(HOME)/.steam/steam/steamapps/common/NeosVR/</NeosPath>
+  </PropertyGroup>
   <PropertyGroup>
     <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\..\Desktop\Neos\app\nml_libs\0Harmony.dll</HintPath>
+      <HintPath>$(NeosPath)\nml_libs\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="FrooxEngine">
-      <HintPath>..\..\..\Desktop\Neos\app\Neos_Data\Managed\FrooxEngine.dll</HintPath>
+      <HintPath>$(NeosPath)\Neos_Data\Managed\FrooxEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="NeosModLoader">
-      <HintPath>..\..\..\Desktop\Neos\app\Libraries\NeosModLoader.dll</HintPath>
+      <HintPath>$(NeosPath)\Libraries\NeosModLoader.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\..\..\Desktop\Neos\app\Neos_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(NeosPath)\Neos_Data\Managed\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System">
       <Private>False</Private>
