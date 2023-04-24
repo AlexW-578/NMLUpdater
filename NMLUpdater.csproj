@@ -33,8 +33,9 @@
   </PropertyGroup>
     <PropertyGroup Condition="'$(NeosPath)'==''">
     <NeosPath>$(MSBuildThisFileDirectory)NeosVR/</NeosPath>
+    <NeosPath Condition="Exists('D:\Apps\Neos\app\')">D:\Apps\Neos\app\</NeosPath>
     <NeosPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\NeosVR\')">C:\Program Files (x86)\Steam\steamapps\common\NeosVR\</NeosPath>
-	<NeosPath Condition="Exists('..\..\..\Desktop\Neos\app\')">..\..\..\Desktop\Neos\app\</NeosPath>
+	  <NeosPath Condition="Exists('..\..\..\Desktop\Neos\app\')">..\..\..\Desktop\Neos\app\</NeosPath>
     <NeosPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/NeosVR/')">$(HOME)/.steam/steam/steamapps/common/NeosVR/</NeosPath>
   </PropertyGroup>
   <PropertyGroup>
@@ -70,7 +71,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy /y /d  $(TargetFileName) C:\Users\Alex\Desktop\Neos\app\nml_mods</PostBuildEvent>
+    <PostBuildEvent>xcopy /y /d  $(TargetFileName) D:\Apps\Neos\app\nml_mods</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <StartAction>Program</StartAction>
