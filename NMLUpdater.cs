@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using FrooxEngine;
@@ -12,6 +14,9 @@ using HarmonyLib;
 using NeosModLoader;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using BaseX;
+using FrooxEngine.LogiX.WorldModel;
+using FrooxEngine.UIX;
 
 namespace NMLUpdater
 {
@@ -20,11 +25,11 @@ namespace NMLUpdater
         public override string Name => "NMLUpdater";
         public override string Author => "AlexW-578";
         public override string Version => "1.0.0";
-        public override string Link => "https://github.com/AlexW-578/CustomLogixBrowser";
+        public override string Link => "https://github.com/AlexW-578/NMLUpdater";
 
         private static List<NeosModUpdate> ModsThatNeedUpdating = new List<NeosModUpdate>();
 
-        private class NeosModUpdate
+        public class NeosModUpdate
         {
             public string Name { get; set; }
             public string Url { get; set; }
@@ -37,53 +42,72 @@ namespace NMLUpdater
 
         private static ModConfiguration Config;
 
-        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> AutoUpdate =
-            new ModConfigurationKey<bool>("AutoUpdate", "Auto-Update Mods", () => true);
+        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> Enabled =
+            new ModConfigurationKey<bool>("Enabled", "Enable/Disable the Mod", () => true);
+
+        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> AutoSpawnList =
+            new ModConfigurationKey<bool>("AutoSpawnList", "Automatically Spawns a List of updated mods in userspace.",
+                () => true);
+
+        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> ListToFile =
+            new ModConfigurationKey<bool>("ModListToFile", "Create a json file with all the mods that needs updating.",
+                () => true);
+
+        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> SpawnProgram =
+            new ModConfigurationKey<bool>("SpawnProgram", "Launches a External Program To update mods.",
+                () => false);
+
+        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<string> SpawnProgramDir =
+            new ModConfigurationKey<string>("SpawnProgram", "Launches a External Program To update mods.",
+                () => "./nml_updater/updater.exe");
 
         public override void OnEngineInit()
         {
             Config = GetConfiguration();
             Config.Save(true);
+            if (!Config.GetValue(Enabled))
+            {
+                return;
+            }
 
+            Platform();
+            Harmony harmony = new Harmony("co.uk.alexw-578.NMLUpdater");
             const string manifestUrl =
                 "https://raw.githubusercontent.com/neos-modding-group/neos-mod-manifest/master/manifest.json";
             string manifest = GetManifest((manifestUrl));
             JObject manifestJson = JObject.Parse(manifest);
             GetModList("./nml_mods", manifestJson);
-            Harmony harmony = new Harmony("co.uk.alexw-578.NMLUpdater");
+            if (Config.GetValue(ListToFile))
+            {
+                string text = "";
+                foreach (NeosModUpdate mod in ModsThatNeedUpdating)
+                {
+                    text +=
+                        $"{{\"modName\": \"{mod.Name}\",\"OldVersion\": \"{mod.Mod.Version}\",\"NewVersion\": \"{mod.NewVersion}\",\"URL\": \"{mod.Url}\",\"NewSHA256\": \"{mod.Sha256}\"}},";
+                }
+                text += "}";
+                File.WriteAllText("./nml_mods/updatedDlls/mods.json", text);
+            }
+
+            if (Config.GetValue(SpawnProgram))
+            {
+                Engine.Current.OnShutdownRequest += _ => { StartExternalProgram(); };
+            }
+
             harmony.PatchAll();
         }
 
-        [HarmonyPatch(typeof(Engine), "Dispose")]
-        class ShutdownPatch
+        private void Platform()
         {
-            static bool Prefix()
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                Warn("Updating Mods:");
-                if (ModsThatNeedUpdating.Count != 0)
-                {
-                    foreach (NeosModUpdate mod in ModsThatNeedUpdating)
-                    {
-                        Warn(mod.Name);
-                        Warn($"Old Version:{mod.Mod.Version} -> New Version:{mod.NewVersion}");
-                        Warn($"URL: {mod.Url}");
-                    }
-                }
-
-                return true;
+                Config.Set(SpawnProgram, "./nml_updater/updater.sh");
+                Config.Save();
             }
-        }
-
-
-        private static string GetChecksumBuffered(String fileName)
-        {
-            var stream = new FileStream(fileName, FileMode.OpenOrCreate, FileAccess.Read);
-            using (var bufferedStream = new BufferedStream(stream, 1024 * 32))
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                var sha = new SHA256Managed();
-                byte[] checksum = sha.ComputeHash(bufferedStream);
-
-                return BitConverter.ToString(checksum).Replace("-", String.Empty);
+                Config.Set(SpawnProgram, "./nml_updater/updater.exe");
+                Config.Save();
             }
         }
 
@@ -96,7 +120,7 @@ namespace NMLUpdater
                 {
                     ModsThatNeedUpdating.Add(neosModUpdate);
                     Warn(
-                        $"{neosModUpdate.Mod}: {neosModUpdate.NeedsUpdate} - New Version:{neosModUpdate.NewVersion} - Old Version: {neosModUpdate.Mod.Version}");
+                        $"{neosModUpdate.Mod}: New Version:{neosModUpdate.NewVersion} - Old Version: {neosModUpdate.Mod.Version}");
                 }
             }
         }
@@ -110,7 +134,7 @@ namespace NMLUpdater
             modUpdate.Mod = neosMod;
             foreach (JToken mod in modList.Children())
             {
-                if (mod.ToString().Contains(neosMod.Name) & mod.ToString().Contains(neosMod.Author))
+                if (mod.Path.Contains(neosMod.Name) & mod.ToString().Contains(neosMod.Author))
                 {
                     int versions = 0;
                     foreach (JToken version in mod.First["versions"])
@@ -164,17 +188,71 @@ namespace NMLUpdater
             return responseText;
         }
 
-        private static void DownloadDll(string url, string destinationFile)
+        [HarmonyPatch(typeof(Userspace), "OnAttach")]
+        class ModSettingsScreen
         {
-            WebRequest request = HttpWebRequest.Create(url);
+            [HarmonyPostfix]
+            public static void Postfix(Userspace __instance)
+            {
+                if (Config.GetValue(AutoSpawnList))
+                {
+                    Slot root = __instance.World.AddSlot("ModList");
+                    SpawnModList(root);
+                }
+            }
 
-            WebResponse response = request.GetResponse();
+            private static void SpawnModList(Slot root)
+            {
+                root.LocalPosition = new float3(0f, 1.5f, 1f);
+                root.AttachComponent<Grabbable>();
+                Slot slot = root.AddSlot("Mod Update List");
+                slot.Tag = "ModList";
+                var ui = new UIBuilder(slot, 600f, 1000f, 0.0005f);
+                ui.Panel(color.LightGray, true);
+                ui.Style.ForceExpandHeight = false;
+                ui.VerticalLayout(8f, 8f, Alignment.TopCenter);
+                ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
+                ui.HorizontalHeader(200f, out RectTransform header, out RectTransform content);
+                ui.NestInto(header);
+                ui.NestInto(ui.Empty("Info"));
+                ui.Style.PreferredHeight = 200f;
+                ui.Image(color.DarkGray);
+                ui.Style.PreferredHeight = 200f;
+                ui.Text(
+                    $"<color=#ffffff>If setup in the config just restart Neos to update the mods.\nOtherwise rename the [modName].dll.updated to just [modName].dll\n And Replace the old version.</color>",
+                    true,
+                    Alignment.MiddleCenter);
+                ui.NestOut();
+                ui.NestInto(content);
+                ui.SetFixedHeight(750f);
+                ui.ScrollArea();
+                ui.VerticalLayout(8f, 8f, Alignment.TopCenter);
+                BuildModUpdaterItems(ui);
+            }
 
-            StreamReader reader = new StreamReader(response.GetResponseStream());
+            private static void BuildModUpdaterItems(UIBuilder ui)
+            {
+                ui.Style.PreferredHeight = 32f;
+                foreach (NeosModUpdate mod in ModsThatNeedUpdating)
+                {
+                    ui.NestInto(ui.Empty(mod.Name));
+                    ui.Style.PreferredHeight = 32f;
+                    ui.Image(color.DarkGray);
+                    ui.Style.PreferredHeight = 32f;
+                    ui.Text(
+                        $"<color=#ffffff>I{mod.Name}: Old Version:{mod.Mod.Version} -> New Version:{mod.NewVersion}</color>",
+                        true,
+                        Alignment.MiddleCenter);
+                    ui.NestOut();
+                }
+            }
+        }
 
-            string responseText = reader.ReadToEnd();
-
-            File.WriteAllText(destinationFile, responseText);
+        private static void StartExternalProgram()
+        {
+            Msg("Starting External Mod Updater");
+            Process.Start(new ProcessStartInfo(Config.GetValue(SpawnProgramDir),
+                "-d ../nml_mods/updatedDlls/mods.json"));
         }
     }
 }

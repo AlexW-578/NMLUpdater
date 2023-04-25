@@ -46,6 +46,9 @@
       <HintPath>$(NeosPath)\nml_libs\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="BaseX">
+      <HintPath>..\..\Apps\Neos\app\Neos_Data\Managed\BaseX.dll</HintPath>
+    </Reference>
     <Reference Include="FrooxEngine">
       <HintPath>$(NeosPath)\Neos_Data\Managed\FrooxEngine.dll</HintPath>
       <Private>False</Private>
