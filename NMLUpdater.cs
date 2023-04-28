@@ -35,8 +35,9 @@ namespace NMLUpdater
             public string Url { get; set; }
             public bool NeedsUpdate { get; set; }
             public string NewVersion { get; set; }
+            public string OldVersion { get; set; }
+
             public string Sha256 { get; set; }
-            public NeosModBase Mod { get; set; }
         }
 
 
@@ -47,19 +48,18 @@ namespace NMLUpdater
 
         [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> AutoSpawnList =
             new ModConfigurationKey<bool>("AutoSpawnList", "Automatically Spawns a List of updated mods in userspace.",
-                () => true);
+                () => false);
 
         [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> ListToFile =
-            new ModConfigurationKey<bool>("ModListToFile", "Create a json file with all the mods that needs updating.",
+            new ModConfigurationKey<bool>("ModListToFile",
+                "Create a json file with all the mods that needs updating.",
                 () => true);
 
         [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> SpawnProgram =
             new ModConfigurationKey<bool>("SpawnProgram", "Launches a External Program To update mods.",
                 () => false);
 
-        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<string> SpawnProgramDir =
-            new ModConfigurationKey<string>("SpawnProgram", "Launches a External Program To update mods.",
-                () => "./nml_updater/updater.exe");
+        private static string SpawnProgramDir = "./nml_updater/updater.exe";
 
         public override void OnEngineInit()
         {
@@ -70,7 +70,6 @@ namespace NMLUpdater
                 return;
             }
 
-            Platform();
             Harmony harmony = new Harmony("co.uk.alexw-578.NMLUpdater");
             const string manifestUrl =
                 "https://raw.githubusercontent.com/neos-modding-group/neos-mod-manifest/master/manifest.json";
@@ -79,18 +78,24 @@ namespace NMLUpdater
             GetModList("./nml_mods", manifestJson);
             if (Config.GetValue(ListToFile))
             {
+                if (Directory.Exists("./nm_updater") == false)
+                {
+                    Directory.CreateDirectory("./nml_updater");
+                }
+
                 string text = "";
                 foreach (NeosModUpdate mod in ModsThatNeedUpdating)
                 {
-                    text +=
-                        $"{{\"modName\": \"{mod.Name}\",\"OldVersion\": \"{mod.Mod.Version}\",\"NewVersion\": \"{mod.NewVersion}\",\"URL\": \"{mod.Url}\",\"NewSHA256\": \"{mod.Sha256}\"}},";
+                    text += $"{JsonConvert.SerializeObject(mod)}\n";
                 }
-                text += "}";
-                File.WriteAllText("./nml_mods/updatedDlls/mods.json", text);
+
+
+                File.WriteAllText("./nml_updater/mods.json", text);
             }
 
             if (Config.GetValue(SpawnProgram))
             {
+                Platform();
                 Engine.Current.OnShutdownRequest += _ => { StartExternalProgram(); };
             }
 
@@ -101,13 +106,11 @@ namespace NMLUpdater
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                Config.Set(SpawnProgram, "./nml_updater/updater.sh");
-                Config.Save();
+                SpawnProgramDir = "./nml_updater/updater.sh";
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                Config.Set(SpawnProgram, "./nml_updater/updater.exe");
-                Config.Save();
+                SpawnProgramDir = "./nml_updater/updater.exe";
             }
         }
 
@@ -120,7 +123,7 @@ namespace NMLUpdater
                 {
                     ModsThatNeedUpdating.Add(neosModUpdate);
                     Warn(
-                        $"{neosModUpdate.Mod}: New Version:{neosModUpdate.NewVersion} - Old Version: {neosModUpdate.Mod.Version}");
+                        $"{neosModUpdate.Name}: New Version:{neosModUpdate.NewVersion} - Old Version: {neosModUpdate.OldVersion}");
                 }
             }
         }
@@ -131,7 +134,7 @@ namespace NMLUpdater
             JToken modList = manifestJson["mods"];
             modUpdate.NeedsUpdate = false;
             modUpdate.Name = neosMod.Name;
-            modUpdate.Mod = neosMod;
+            modUpdate.OldVersion = neosMod.Version;
             foreach (JToken mod in modList.Children())
             {
                 if (mod.Path.Contains(neosMod.Name) & mod.ToString().Contains(neosMod.Author))
@@ -240,7 +243,7 @@ namespace NMLUpdater
                     ui.Image(color.DarkGray);
                     ui.Style.PreferredHeight = 32f;
                     ui.Text(
-                        $"<color=#ffffff>I{mod.Name}: Old Version:{mod.Mod.Version} -> New Version:{mod.NewVersion}</color>",
+                        $"<color=#ffffff>I{mod.Name}: Old Version:{mod.OldVersion} -> New Version:{mod.NewVersion}</color>",
                         true,
                         Alignment.MiddleCenter);
                     ui.NestOut();
@@ -251,8 +254,7 @@ namespace NMLUpdater
         private static void StartExternalProgram()
         {
             Msg("Starting External Mod Updater");
-            Process.Start(new ProcessStartInfo(Config.GetValue(SpawnProgramDir),
-                "-d ../nml_mods/updatedDlls/mods.json"));
+            Process.Start(SpawnProgramDir);
         }
     }
 }
