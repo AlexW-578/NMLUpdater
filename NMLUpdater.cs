@@ -53,13 +53,16 @@ namespace NMLUpdater
         [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> ListToFile =
             new ModConfigurationKey<bool>("ModListToFile",
                 "Create a json file with all the mods that needs updating.",
-                () => true);
-
-        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> SpawnProgram =
-            new ModConfigurationKey<bool>("SpawnProgram", "Launches a External Program To update mods.",
                 () => false);
 
-        private static string SpawnProgramDir = "./nml_updater/updater.exe";
+        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> SpawnProgram =
+            new ModConfigurationKey<bool>("SpawnProgram",
+                "Launches a External Program To update mods.\nMust have ModListToFile Enabled.",
+                () => false);
+
+        private static string SpawnProgramDir = "\\nml_updater\\updater.exe";
+        private static bool _isSpawned = false;
+
 
         public override void OnEngineInit()
         {
@@ -106,11 +109,11 @@ namespace NMLUpdater
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                SpawnProgramDir = "./nml_updater/updater.sh";
+                SpawnProgramDir = "/nml_updater/updater.sh";
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                SpawnProgramDir = "./nml_updater/updater.exe";
+                SpawnProgramDir = "\\nml_updater\\updater.exe";
             }
         }
 
@@ -254,7 +257,34 @@ namespace NMLUpdater
         private static void StartExternalProgram()
         {
             Msg("Starting External Mod Updater");
-            Process.Start(SpawnProgramDir);
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (ModsThatNeedUpdating.Count > 0)
+                {
+                    if (_isSpawned == false)
+                    {
+                        var updaterArgs = " --neos-dir " + Directory.GetCurrentDirectory();
+                        var cmdArgs = "-u " + Directory.GetCurrentDirectory() + SpawnProgramDir + " " + updaterArgs;
+                        Warn(cmdArgs);
+                        _isSpawned = true;
+                        Process.Start(new ProcessStartInfo("bash", cmdArgs));
+                    }
+                }
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                if (ModsThatNeedUpdating.Count > 0)
+                {
+                    if (_isSpawned == false)
+                    {
+                        var updaterArgs = " --neos-dir " + Directory.GetCurrentDirectory();
+                        var cmdArgs = "/k " + Directory.GetCurrentDirectory() + SpawnProgramDir + " " + updaterArgs;
+                        Warn(cmdArgs);
+                        _isSpawned = true;
+                        Process.Start(new ProcessStartInfo("cmd", cmdArgs));
+                    }
+                }
+            }
         }
     }
 }
