@@ -9,3 +9,10 @@ A [NeosModLoader](https://github.com/neos-modding-group/NeosModLoader) mod for [
 4. Place the executable into a folder called ``nml_updater`` in the root of your neos install.
 5. Start the game. If you want to verify that the mod is working you can check your Neos logs.
 
+## Options:
+- Enabled - Enables and disables the whole mod
+- AutoSpawnList - Automaticly spawns a list in userspace when loading into the game
+- ModlistToFile - Creates a JSON file with all the mods that need updating
+- SpawnProgram - Launches the Updater Program whenever Neos closes
+
+
