@@ -278,7 +278,7 @@ namespace NMLUpdater
                     if (_isSpawned == false)
                     {
                         var updaterArgs = " --neos-dir " + Directory.GetCurrentDirectory();
-                        var cmdArgs = "/k " + Directory.GetCurrentDirectory() + SpawnProgramDir + " " + updaterArgs;
+                        var cmdArgs = "/c " + Directory.GetCurrentDirectory() + SpawnProgramDir + " " + updaterArgs;
                         Warn(cmdArgs);
                         _isSpawned = true;
                         Process.Start(new ProcessStartInfo("cmd", cmdArgs));
