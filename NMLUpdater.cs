@@ -46,10 +46,6 @@ namespace NMLUpdater
         [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> Enabled =
             new ModConfigurationKey<bool>("Enabled", "Enable/Disable the Mod", () => true);
 
-        [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> AutoSpawnList =
-            new ModConfigurationKey<bool>("AutoSpawnList", "Automatically Spawns a List of updated mods in userspace.",
-                () => false);
-
         [AutoRegisterConfigKey] private static readonly ModConfigurationKey<bool> ListToFile =
             new ModConfigurationKey<bool>("ModListToFile",
                 "Create a json file with all the mods that needs updating.",
@@ -62,8 +58,7 @@ namespace NMLUpdater
 
         private static string SpawnProgramDir = "\\nml_updater\\updater.exe";
         private static bool _isSpawned = false;
-
-
+        
         public override void OnEngineInit()
         {
             Config = GetConfiguration();
@@ -125,8 +120,7 @@ namespace NMLUpdater
                 if (neosModUpdate.NeedsUpdate)
                 {
                     ModsThatNeedUpdating.Add(neosModUpdate);
-                    Warn(
-                        $"{neosModUpdate.Name}: New Version:{neosModUpdate.NewVersion} - Old Version: {neosModUpdate.OldVersion}");
+                    Warn($"{neosModUpdate.Name}: New Version:{neosModUpdate.NewVersion} - Old Version: {neosModUpdate.OldVersion}");
                 }
             }
         }
@@ -192,66 +186,6 @@ namespace NMLUpdater
 
             string responseText = reader.ReadToEnd();
             return responseText;
-        }
-
-        [HarmonyPatch(typeof(Userspace), "OnAttach")]
-        class ModSettingsScreen
-        {
-            [HarmonyPostfix]
-            public static void Postfix(Userspace __instance)
-            {
-                if (Config.GetValue(AutoSpawnList))
-                {
-                    Slot root = __instance.World.AddSlot("ModList");
-                    SpawnModList(root);
-                }
-            }
-
-            private static void SpawnModList(Slot root)
-            {
-                root.LocalPosition = new float3(0f, 1.5f, 1f);
-                root.AttachComponent<Grabbable>();
-                Slot slot = root.AddSlot("Mod Update List");
-                slot.Tag = "ModList";
-                var ui = new UIBuilder(slot, 600f, 1000f, 0.0005f);
-                ui.Panel(color.LightGray, true);
-                ui.Style.ForceExpandHeight = false;
-                ui.VerticalLayout(8f, 8f, Alignment.TopCenter);
-                ui.FitContent(SizeFit.Disabled, SizeFit.PreferredSize);
-                ui.HorizontalHeader(200f, out RectTransform header, out RectTransform content);
-                ui.NestInto(header);
-                ui.NestInto(ui.Empty("Info"));
-                ui.Style.PreferredHeight = 200f;
-                ui.Image(color.DarkGray);
-                ui.Style.PreferredHeight = 200f;
-                ui.Text(
-                    $"<color=#ffffff>If setup in the config just restart Neos to update the mods.\nOtherwise rename the [modName].dll.updated to just [modName].dll\n And Replace the old version.</color>",
-                    true,
-                    Alignment.MiddleCenter);
-                ui.NestOut();
-                ui.NestInto(content);
-                ui.SetFixedHeight(750f);
-                ui.ScrollArea();
-                ui.VerticalLayout(8f, 8f, Alignment.TopCenter);
-                BuildModUpdaterItems(ui);
-            }
-
-            private static void BuildModUpdaterItems(UIBuilder ui)
-            {
-                ui.Style.PreferredHeight = 32f;
-                foreach (NeosModUpdate mod in ModsThatNeedUpdating)
-                {
-                    ui.NestInto(ui.Empty(mod.Name));
-                    ui.Style.PreferredHeight = 32f;
-                    ui.Image(color.DarkGray);
-                    ui.Style.PreferredHeight = 32f;
-                    ui.Text(
-                        $"<color=#ffffff>I{mod.Name}: Old Version:{mod.OldVersion} -> New Version:{mod.NewVersion}</color>",
-                        true,
-                        Alignment.MiddleCenter);
-                    ui.NestOut();
-                }
-            }
         }
 
         private static void StartExternalProgram()
